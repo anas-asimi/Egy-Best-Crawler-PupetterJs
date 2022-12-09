@@ -347,6 +347,9 @@ async function getEpisodesDownloadUrl(page, serieObject) {
 //
 async function extractDownloadUrl(page, resolution, mediaUrl) {
   try {
+
+    await removeAds(page, resolution, mediaUrl);
+
     let checkElement = await page.$(
       "#mainLoad .movie_title h1 "
     );
@@ -355,8 +358,6 @@ async function extractDownloadUrl(page, resolution, mediaUrl) {
       await page.goto(mediaUrl);
       return await extractDownloadUrl(page, resolution, mediaUrl);
     }
-
-    await removeAds(page, resolution, mediaUrl);
 
     let browser = await page.browser();
     let resolutions = await page.evaluate(() => {
@@ -397,14 +398,21 @@ async function extractDownloadUrl(page, resolution, mediaUrl) {
     else if (pagesNumber == 2) {
       page = await getCurrentPage(browser);
       let pageURL = await page.url();
+      let adBlockStat = await page.evaluate(() => {
+        return document.querySelector('#GlobalFrame').classList.contains('compact')
+      })
 
-      if (pageURL.includes("vidstream")) {
+      if (adBlockStat) {
+        await adBlockBypass(page)
         page = await getCurrentPage(browser);
+        return await extractDownloadUrl(page, resolution, mediaUrl);
+      }
+      else if (pageURL.includes("vidstream")) {
         await page.close();
         page = await getCurrentPage(browser);
         return pageURL;
-      } else {
-        page = await getCurrentPage(browser);
+      }
+      else {
         await page.close();
         page = await getCurrentPage(browser);
         return await extractDownloadUrl(page, resolution, mediaUrl);
@@ -434,12 +442,9 @@ async function removeAds(page, resolution, mediaURL) {
     let pages = await browser.pages();
 
     if (pages.length == 1) {
-      page = await getCurrentPage(browser);
       let newURL = await page.url();
-
       if (newURL != mediaURL) {
-        await page.goto(mediaURL);
-        return await extractDownloadUrl(page, resolution, mediaURL); // Im really loving Recursion , its ART
+        return 'origin page lost'
       }
 
     } else if (pages.length == 2) {
@@ -454,6 +459,58 @@ async function removeAds(page, resolution, mediaURL) {
     }
   } catch (error) {
     console.log(`error in removeAds => ${error}`);
+  }
+}
+//
+// ===============================
+//
+async function adBlockBypass(page) {
+  try {
+    console.log(`adBlockBypass`);
+    let browser = await page.browser();
+    let pagesBefore = await browser.pages();
+    let title = await page.$("#GlobalFrame p input");
+    await title.click();
+    await sleep(1000);
+
+    let pagesAfter = await browser.pages();
+
+    if (pagesAfter == pagesBefore) {
+
+      let adBlockStat = await page.evaluate(() => {
+        return document.querySelector('#GlobalFrame').classList.contains('compact')
+      })
+
+      if (adBlockStat) {
+        console.log('close button did nothing');
+        return await adBlockBypass(page)
+      }
+      else {
+        await page.close();
+        page = await getCurrentPage(browser);
+        return 'good'
+      }
+
+    }
+    else if (pagesAfter > pagesBefore) {
+      page = await getCurrentPage(browser);
+      await page.close();
+      page = await getCurrentPage(browser);
+      let adBlockStat = await page.evaluate(() => {
+        return document.querySelector('#GlobalFrame').classList.contains('compact')
+      })
+
+      if (adBlockStat) {
+        return await adBlockBypass(page)
+      }
+      else {
+        await page.close();
+        page = await getCurrentPage(browser);
+        return 'good'
+      }
+    }
+  } catch (error) {
+    console.log(`error in adBlockBypass => ${error}`);
   }
 }
 
