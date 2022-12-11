@@ -31,21 +31,19 @@ import {
   // Movie
   if (selected.type === "movie") {
 
-    let movieObject = await getMovieData(page, selected);
+    var movieObject = await getMovieData(page, selected);
     movieObject = await movieResolutionSelect(movieObject);
     movieObject = await getMovieDownloadUrl(page, movieObject);
-    console.log(movieObject);
   }
 
   // Anime or Serie
   else if (selected.type === "anime" || selected.type === "series") {
 
-    let serieObject = await getSerieData(page, selected);
+    var serieObject = await getSerieData(page, selected);
     // here we should chose which seasons to download
     serieObject = await serieResolutionSelect(serieObject);
     serieObject = await getSerieEpisodes(page, serieObject);
-    serieObject = await getEpisodesDownloadUrl(page,serieObject);
-    console.log(serieObject);
+    serieObject = await getEpisodesDownloadUrl(page, serieObject);
   }
   // Not Ordinay Type
   else {
@@ -53,8 +51,9 @@ import {
     console.log(selected);
   }
 
-  // let json = JSON.stringify(movieObject || serieObject);
-  // fs.writeFile('myjsonfile.json', json, 'utf8');
+  let result = movieObject || serieObject;
+  let json = JSON.stringify(result);
+  fs.writeFileSync(`data/${result.title}.json`, json, 'utf8');
 
   browser.close();
 

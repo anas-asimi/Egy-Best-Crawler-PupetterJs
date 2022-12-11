@@ -323,19 +323,19 @@ async function extractEpisodes(page, season) {
 async function getEpisodesDownloadUrl(page, serieObject) {
   try {
     for (const season of serieObject.seasons) {
-      console.log(`start process season ${season.season}.`);
+      console.log(`start season ${season.season}.`);
       for (const episode of season.episodes) {
-        console.log(`start process episode ${episode.episode}.`);
+        console.log(`start episode ${episode.episode}.\n`);
         await page.goto(episode.url)
         episode.downloadUrl = await extractDownloadUrl(
           page,
           serieObject.selectedResolution,
           episode.url
         );
-        console.log(`episode ${episode.episode} Done.`);
+        console.log(`\nepisode ${episode.episode} Done.`);
         await sleep(1000)
       }
-      console.log(`season ${season.season} Done.`);
+      console.log(`season ${season.season} Done.\n`);
     }
     return serieObject
   } catch (error) {
@@ -347,19 +347,18 @@ async function getEpisodesDownloadUrl(page, serieObject) {
 //
 async function extractDownloadUrl(page, resolution, mediaUrl) {
   try {
-
-    await removeAds(page, resolution, mediaUrl);
-
-    let checkElement = await page.$(
-      "#mainLoad .movie_title h1 "
-    );
-    if (checkElement === null) {
+    // check if we are in the right page to dowload
+    if (await page.$("#mainLoad .movie_title h1 ") === null) {
       console.log('wrong page, redirect .....');
       await page.goto(mediaUrl);
       return await extractDownloadUrl(page, resolution, mediaUrl);
-    }
+    } else { console.log('Right Page'); }
 
-    let browser = await page.browser();
+    // remove Ads
+    await removeAds(page, resolution, mediaUrl);
+    console.log('ads removed');
+
+    // find the right button
     let resolutions = await page.evaluate(() => {
       // get Movie Resolutions =================
       let resolutions = Array.from(
@@ -379,46 +378,61 @@ async function extractDownloadUrl(page, resolution, mediaUrl) {
       : 0;
     let button = buttons[index];
 
+    // click the button
+    console.log('click download button');
     await button.click();
-    await sleep(1000);
+    let browser = await page.browser();
+    let pages = await waitNewPageLoaded(browser);
+    await sleep(1000)
 
-    let pages = await browser.pages();
-    let pagesNumber = pages.length;
-
-    // if there are 1 page
-    if (pagesNumber == 1) {
-      let pageURL = await page.url();
-      if (pageURL.includes("vidstream")) {
-        return pageURL;
-      } else {
-        return await extractDownloadUrl(page, resolution, mediaUrl);
-      }
-    }
-    // if there are 2 pages
-    else if (pagesNumber == 2) {
+    if (pages.length == 2) {
+      console.log('new page found');
       page = await getCurrentPage(browser);
       let pageURL = await page.url();
-      let adBlockStat = await page.evaluate(() => {
-        return document.querySelector('#GlobalFrame').classList.contains('compact')
-      })
 
-      if (adBlockStat) {
-        await adBlockBypass(page)
-        page = await getCurrentPage(browser);
-        return await extractDownloadUrl(page, resolution, mediaUrl);
-      }
-      else if (pageURL.includes("vidstream")) {
+      // the download page
+      if (pageURL.includes("vidstream")) {
         await page.close();
         page = await getCurrentPage(browser);
         return pageURL;
       }
+
+      // the adBlock page
+      else if (pageURL[0, 10] === mediaUrl[0, 10]) {
+        let adBlockStat = await page.evaluate(() => {
+          let element = document.querySelector('#GlobalFrame')
+          if (element === null) {
+            return false
+          }
+          if (element.classList.contains('compact')) {
+            return true
+          }
+          return false
+        })
+        if (adBlockStat) {
+          console.log('Adblock page detected');
+          await adBlockBypass(page)
+          console.log('Adblock resolve');
+          page = await getCurrentPage(browser);
+          return await extractDownloadUrl(page, resolution, mediaUrl);
+        }
+        else {
+          // Ad page
+          console.log('just the same page hehe');
+          await page.close();
+          page = await getCurrentPage(browser);
+          return await extractDownloadUrl(page, resolution, mediaUrl);
+        }
+      }
       else {
+        // Ad page
+        console.log('just Ads');
         await page.close();
         page = await getCurrentPage(browser);
         return await extractDownloadUrl(page, resolution, mediaUrl);
       }
     }
-    // if there are more than 2 pages
+    // if there are more than 2 pages in browser
     else {
       console.log(
         "more than two popup page when click download  -- in extractDownloadUrl function"
@@ -437,17 +451,20 @@ async function removeAds(page, resolution, mediaURL) {
     let browser = await page.browser();
     let title = await page.$("#mainLoad .movie_title h1");
     await title.click();
-    await sleep(1000);
+    await sleep(1500);
 
     let pages = await browser.pages();
 
     if (pages.length == 1) {
       let newURL = await page.url();
+      console.log('ads removed');
       if (newURL != mediaURL) {
         return 'origin page lost'
       }
+      else { return 'good' }
 
     } else if (pages.length == 2) {
+      console.log(`close ad page`);
       page = await getCurrentPage(browser);
       await page.close();
       page = await getCurrentPage(browser);
@@ -469,8 +486,8 @@ async function adBlockBypass(page) {
     console.log(`adBlockBypass`);
     let browser = await page.browser();
     let pagesBefore = await browser.pages();
-    let title = await page.$("#GlobalFrame p input");
-    await title.click();
+    let button = await page.$("#GlobalFrame p input");
+    await button.click();
     await sleep(1000);
 
     let pagesAfter = await browser.pages();
@@ -478,7 +495,14 @@ async function adBlockBypass(page) {
     if (pagesAfter == pagesBefore) {
 
       let adBlockStat = await page.evaluate(() => {
-        return document.querySelector('#GlobalFrame').classList.contains('compact')
+        let element = document.querySelector('#GlobalFrame')
+        if (element === null) {
+          return false
+        }
+        if (element.classList.contains('compact')) {
+          return true
+        }
+        return false
       })
 
       if (adBlockStat) {
@@ -487,7 +511,6 @@ async function adBlockBypass(page) {
       }
       else {
         await page.close();
-        page = await getCurrentPage(browser);
         return 'good'
       }
 
@@ -496,8 +519,16 @@ async function adBlockBypass(page) {
       page = await getCurrentPage(browser);
       await page.close();
       page = await getCurrentPage(browser);
+
       let adBlockStat = await page.evaluate(() => {
-        return document.querySelector('#GlobalFrame').classList.contains('compact')
+        let element = document.querySelector('#GlobalFrame')
+        if (element === null) {
+          return false
+        }
+        if (element.classList.contains('compact')) {
+          return true
+        }
+        return false
       })
 
       if (adBlockStat) {
@@ -505,12 +536,23 @@ async function adBlockBypass(page) {
       }
       else {
         await page.close();
-        page = await getCurrentPage(browser);
         return 'good'
       }
     }
   } catch (error) {
     console.log(`error in adBlockBypass => ${error}`);
+  }
+}
+//
+// ===============================
+//
+async function waitNewPageLoaded(browser) {
+  while (true) {
+    await sleep(500)
+    let pages = await browser.pages()
+    if (pages.length == 2) {
+      return pages
+    }
   }
 }
 
