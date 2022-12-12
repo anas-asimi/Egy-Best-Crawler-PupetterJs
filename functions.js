@@ -421,9 +421,13 @@ async function extractDownloadUrl(page, resolution, mediaUrl) {
         // the adBlock page
         if (adBlockStat) {
           console.log('Adblock page detected');
-          await adBlockBypass(page)
-          console.log('Adblock resolve');
+          // await adBlockBypass(page)
+          // console.log('Adblock resolve');
+          // page = await getCurrentPage(browser);
+          // return await extractDownloadUrl(page, resolution, mediaUrl);
+          await page.close()
           page = await getCurrentPage(browser);
+          await page.goto(mediaUrl)
           return await extractDownloadUrl(page, resolution, mediaUrl);
         }
         // just the same page
