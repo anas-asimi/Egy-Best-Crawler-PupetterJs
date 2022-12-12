@@ -1,6 +1,6 @@
 import browser from "./browserCreator.js";
-import fs from 'fs'
 import {
+  saveData,
   getQuery,
   getCurrentPage,
   turnOffImages,
@@ -34,26 +34,28 @@ import {
     var movieObject = await getMovieData(page, selected);
     movieObject = await movieResolutionSelect(movieObject);
     movieObject = await getMovieDownloadUrl(page, movieObject);
+    saveData(movieObject)
+
   }
 
   // Anime or Serie
-  else if (selected.type === "anime" || selected.type === "series") {
+  else if (selected.type === "series") {
 
     var serieObject = await getSerieData(page, selected);
     // here we should chose which seasons to download
     serieObject = await serieResolutionSelect(serieObject);
     serieObject = await getSerieEpisodes(page, serieObject);
     serieObject = await getEpisodesDownloadUrl(page, serieObject);
+    saveData(serieObject)
+
   }
+    
   // Not Ordinay Type
   else {
+
     console.log(`selcted objet has unordinary type\n`);
     console.log(selected);
   }
-
-  let result = movieObject || serieObject;
-  let json = JSON.stringify(result);
-  fs.writeFileSync(`data/${result.title}.json`, json, 'utf8');
 
   browser.close();
 

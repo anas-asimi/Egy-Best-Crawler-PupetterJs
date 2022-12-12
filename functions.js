@@ -1,6 +1,17 @@
 import PromptSync from "prompt-sync";
+import fs from 'fs'
 let prompt = PromptSync({ sigint: true });
 
+
+
+
+function saveData(result) {
+  let json = JSON.stringify(result);
+  fs.writeFileSync(`data/${result.title}.json`, json, 'utf8');
+}
+//
+// ===============================
+//
 async function sleep(timeout) {
   await new Promise((resolv) => setTimeout(resolv, timeout));
 }
@@ -355,8 +366,8 @@ async function extractDownloadUrl(page, resolution, mediaUrl) {
     } else { console.log('Right Page'); }
 
     // remove Ads
-    await removeAds(page, resolution, mediaUrl);
-    console.log('ads removed');
+    // await removeAds(page, resolution, mediaUrl);
+    // console.log('ads removed');
 
     // find the right button
     let resolutions = await page.evaluate(() => {
@@ -396,19 +407,18 @@ async function extractDownloadUrl(page, resolution, mediaUrl) {
         page = await getCurrentPage(browser);
         return pageURL;
       }
-
-      // the adBlock page
+      // egybest page
       else if (pageURL[0, 10] === mediaUrl[0, 10]) {
         let adBlockStat = await page.evaluate(() => {
-          let element = document.querySelector('#GlobalFrame')
+          let element = document.querySelector('.msg_box.error.full.tam')
           if (element === null) {
             return false
           }
-          if (element.classList.contains('compact')) {
+          else {
             return true
           }
-          return false
         })
+        // the adBlock page
         if (adBlockStat) {
           console.log('Adblock page detected');
           await adBlockBypass(page)
@@ -416,16 +426,16 @@ async function extractDownloadUrl(page, resolution, mediaUrl) {
           page = await getCurrentPage(browser);
           return await extractDownloadUrl(page, resolution, mediaUrl);
         }
+        // just the same page
         else {
-          // Ad page
           console.log('just the same page hehe');
           await page.close();
           page = await getCurrentPage(browser);
           return await extractDownloadUrl(page, resolution, mediaUrl);
         }
       }
+      // Ad page
       else {
-        // Ad page
         console.log('just Ads');
         await page.close();
         page = await getCurrentPage(browser);
@@ -484,25 +494,44 @@ async function removeAds(page, resolution, mediaURL) {
 async function adBlockBypass(page) {
   try {
     console.log(`adBlockBypass`);
+
+    let adBlockStat = await page.evaluate(() => {
+      let element = document.querySelector('.msg_box.error.full.tam')
+      if (element === null) {
+        return false
+      }
+      else {
+        return true
+      }
+    })
+    if (!adBlockStat) {
+      console.log('adblock resolved');
+      await page.close()
+      return 'good'
+    }
+    console.log(1); // <====================
     let browser = await page.browser();
     let pagesBefore = await browser.pages();
-    let button = await page.$("#GlobalFrame p input");
+    pagesBefore = pagesBefore.length;
+    let button = await page.$("#mainLoad > .msg_box.error.full.tam > a");
+    console.log(2); // <====================
     await button.click();
-    await sleep(1000);
+    console.log(3); // <====================
+    let pagesAfter = await waitNewPageLoaded(browser, pagesBefore);
+    console.log(4); // <====================
+    pagesAfter = pagesAfter.length;
 
-    let pagesAfter = await browser.pages();
-
+    console.log(pagesBefore, pagesAfter);
     if (pagesAfter == pagesBefore) {
 
       let adBlockStat = await page.evaluate(() => {
-        let element = document.querySelector('#GlobalFrame')
+        let element = document.querySelector('.msg_box.error.full.tam')
         if (element === null) {
           return false
         }
-        if (element.classList.contains('compact')) {
+        else {
           return true
         }
-        return false
       })
 
       if (adBlockStat) {
@@ -513,31 +542,12 @@ async function adBlockBypass(page) {
         await page.close();
         return 'good'
       }
-
     }
     else if (pagesAfter > pagesBefore) {
       page = await getCurrentPage(browser);
       await page.close();
       page = await getCurrentPage(browser);
-
-      let adBlockStat = await page.evaluate(() => {
-        let element = document.querySelector('#GlobalFrame')
-        if (element === null) {
-          return false
-        }
-        if (element.classList.contains('compact')) {
-          return true
-        }
-        return false
-      })
-
-      if (adBlockStat) {
-        return await adBlockBypass(page)
-      }
-      else {
-        await page.close();
-        return 'good'
-      }
+      return await adBlockBypass(page)
     }
   } catch (error) {
     console.log(`error in adBlockBypass => ${error}`);
@@ -546,17 +556,19 @@ async function adBlockBypass(page) {
 //
 // ===============================
 //
-async function waitNewPageLoaded(browser) {
+async function waitNewPageLoaded(browser,pagesBefore = 1) {
   while (true) {
     await sleep(500)
     let pages = await browser.pages()
-    if (pages.length == 2) {
+    if (pages.length >= pagesBefore + 1) {
+      await pages[1].waitForSelector('body')
       return pages
     }
   }
 }
 
 export {
+  saveData,
   getQuery,
   getCurrentPage,
   turnOffImages,

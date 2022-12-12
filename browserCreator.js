@@ -3,7 +3,7 @@ import puppeteer from "puppeteer";
 let browser;
 
 let params = {
-    headless: true,
+    headless: false,
     defaultViewport: null,
     args: ["--start-maximized"],
 };
