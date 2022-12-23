@@ -5,8 +5,7 @@ let browser;
 let params = {
     headless: false,
     defaultViewport: null,
-    args: ["--start-maximized"],
-};
+    args: ["--start-maximized"]};
 
 if (!browser) {
     browser = await puppeteer.launch(params);

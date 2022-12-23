@@ -6,7 +6,7 @@ let prompt = PromptSync({ sigint: true });
 
 
 function saveData(result) {
-  let json = JSON.stringify(result);
+  let json = JSON.stringify(result,space ='\n');
   fs.writeFileSync(`data/${result.title}.json`, json, 'utf8');
 }
 //
@@ -366,8 +366,8 @@ async function extractDownloadUrl(page, resolution, mediaUrl) {
     } else { console.log('Right Page'); }
 
     // remove Ads
-    // await removeAds(page, resolution, mediaUrl);
-    // console.log('ads removed');
+    await removeAds(page, resolution, mediaUrl);
+    console.log('ads removed');
 
     // find the right button
     let resolutions = await page.evaluate(() => {
@@ -403,6 +403,7 @@ async function extractDownloadUrl(page, resolution, mediaUrl) {
 
       // the download page
       if (pageURL.includes("vidstream")) {
+        console.log(`found download link`);
         await page.close();
         page = await getCurrentPage(browser);
         return pageURL;
@@ -421,14 +422,14 @@ async function extractDownloadUrl(page, resolution, mediaUrl) {
         // the adBlock page
         if (adBlockStat) {
           console.log('Adblock page detected');
-          // await adBlockBypass(page)
-          // console.log('Adblock resolve');
-          // page = await getCurrentPage(browser);
-          // return await extractDownloadUrl(page, resolution, mediaUrl);
-          await page.close()
+          await adBlockBypass(page)
+          console.log('Adblock resolve');
           page = await getCurrentPage(browser);
-          await page.goto(mediaUrl)
           return await extractDownloadUrl(page, resolution, mediaUrl);
+          // await page.close()
+          // page = await getCurrentPage(browser);
+          // await page.goto(mediaUrl)
+          // return await extractDownloadUrl(page, resolution, mediaUrl);
         }
         // just the same page
         else {
@@ -465,17 +466,20 @@ async function removeAds(page, resolution, mediaURL) {
     let browser = await page.browser();
     let title = await page.$("#mainLoad .movie_title h1");
     await title.click();
-    await sleep(1500);
+    await sleep(1000);
 
     let pages = await browser.pages();
 
     if (pages.length == 1) {
       let newURL = await page.url();
       console.log('ads removed');
-      if (newURL != mediaURL) {
-        return 'origin page lost'
+      if (newURL == mediaURL) {
+        return 'good'
       }
-      else { return 'good' }
+      else {
+        console.log('origin page lost');
+        return 'bad'
+      }
 
     } else if (pages.length == 2) {
       console.log(`close ad page`);
@@ -497,8 +501,8 @@ async function removeAds(page, resolution, mediaURL) {
 //
 async function adBlockBypass(page) {
   try {
+    await sleep(99999)
     console.log(`adBlockBypass`);
-
     let adBlockStat = await page.evaluate(() => {
       let element = document.querySelector('.msg_box.error.full.tam')
       if (element === null) {
@@ -509,43 +513,30 @@ async function adBlockBypass(page) {
       }
     })
     if (!adBlockStat) {
-      console.log('adblock resolved');
       await page.close()
       return 'good'
     }
     console.log(1); // <====================
+
     let browser = await page.browser();
-    let pagesBefore = await browser.pages();
-    pagesBefore = pagesBefore.length;
+    let pagesBefore = await browser.pages().length;
+    console.log('number of pages before',pagesBefore);
     let button = await page.$("#mainLoad > .msg_box.error.full.tam > a");
+
     console.log(2); // <====================
+
     await button.click();
+    await sleep(1000)
+
     console.log(3); // <====================
-    let pagesAfter = await waitNewPageLoaded(browser, pagesBefore);
+
+    let pagesAfter = await browser.pages().length;
+    console.log('number of pages after', pagesBefore);
+    
     console.log(4); // <====================
-    pagesAfter = pagesAfter.length;
 
-    console.log(pagesBefore, pagesAfter);
     if (pagesAfter == pagesBefore) {
-
-      let adBlockStat = await page.evaluate(() => {
-        let element = document.querySelector('.msg_box.error.full.tam')
-        if (element === null) {
-          return false
-        }
-        else {
-          return true
-        }
-      })
-
-      if (adBlockStat) {
-        console.log('close button did nothing');
-        return await adBlockBypass(page)
-      }
-      else {
-        await page.close();
-        return 'good'
-      }
+      return await adBlockBypass(page)
     }
     else if (pagesAfter > pagesBefore) {
       page = await getCurrentPage(browser);

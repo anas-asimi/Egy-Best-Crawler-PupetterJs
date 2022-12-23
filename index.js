@@ -30,7 +30,6 @@ import {
 
   // Movie
   if (selected.type === "movie") {
-
     var movieObject = await getMovieData(page, selected);
     movieObject = await movieResolutionSelect(movieObject);
     movieObject = await getMovieDownloadUrl(page, movieObject);
@@ -40,7 +39,6 @@ import {
 
   // Anime or Serie
   else if (selected.type === "series") {
-
     var serieObject = await getSerieData(page, selected);
     // here we should chose which seasons to download
     serieObject = await serieResolutionSelect(serieObject);
